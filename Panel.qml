@@ -266,6 +266,15 @@ Panel {
           }
         }
       }
+
+      ConfirmDialog {
+        anchors.fill: parent
+        opened: root.clearConfirmOpen
+        message: "Clear all clipboard history?"
+        confirmText: "Clear"
+        onCanceled: root.clearConfirmOpen = false
+        onConfirmed: root.confirmClearHistory()
+      }
     }
   }
 
@@ -288,15 +297,6 @@ Panel {
       asynchronous: true
       cache: false
     }
-  }
-
-  ConfirmDialog {
-    anchors.fill: panel
-    opened: root.clearConfirmOpen
-    message: "Clear all clipboard history?"
-    confirmText: "Clear"
-    onCanceled: root.clearConfirmOpen = false
-    onConfirmed: root.confirmClearHistory()
   }
 
   component HistoryRow: CursorSurface {
