@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Io
 import qs.Ui
 
 // Bar icon that hosts the clipboard popup (Panel.qml): recent copies,
