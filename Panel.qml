@@ -36,7 +36,6 @@ Panel {
 
   property bool clearConfirmOpen: false
   property string previewPath: ""
-  property var previewAnchor: null
 
   function loadHistory(raw) {
     root.history = ClipboardHistory.parseHistory(raw)
@@ -80,15 +79,13 @@ Panel {
     root.close()
   }
 
-  function openPreview(path, anchor) {
+  function openPreview(path) {
     if (!path) return
     root.previewPath = path
-    root.previewAnchor = anchor
   }
 
   function closePreview() {
     root.previewPath = ""
-    root.previewAnchor = null
   }
 
   function requestClearHistory() {
@@ -187,7 +184,11 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       blocked: filterField.activeFocus
-      onCloseRequested: root.clearConfirmOpen ? (root.clearConfirmOpen = false) : root.close()
+      onCloseRequested: {
+        if (root.clearConfirmOpen) root.clearConfirmOpen = false
+        else if (root.previewPath !== "") root.closePreview()
+        else root.close()
+      }
 
       Column {
         id: column
@@ -275,27 +276,58 @@ Panel {
         onCanceled: root.clearConfirmOpen = false
         onConfirmed: root.confirmClearHistory()
       }
-    }
-  }
 
-  // Anchored to whichever row's eye button was last clicked; shows the
-  // full image instead of every image entry rendering inline in the list.
-  PopupCard {
-    id: previewPopup
-    anchorItem: root.previewAnchor || root.anchorItem
-    bar: root.bar
-    owner: ({ close: function() { root.closePreview() } })
-    open: root.previewPath !== ""
-    triggerMode: "click"
-    contentWidth: Style.space(320)
-    contentHeight: Style.space(320)
+      // Inline image preview instead of a second popup window — a
+      // PopupCard anchored off a row deep inside this already-popped-up
+      // panel fought the outside-click/focus-grab handling of the panel
+      // itself and could get stuck open with nothing rendered. This is
+      // just another full-size layer over the same content, same as
+      // ConfirmDialog above.
+      Item {
+        id: previewOverlay
+        anchors.fill: parent
+        visible: root.previewPath !== ""
 
-    Image {
-      anchors.fill: parent
-      source: root.previewPath ? Util.fileUrl(root.previewPath) : ""
-      fillMode: Image.PreserveAspectFit
-      asynchronous: true
-      cache: false
+        Rectangle {
+          anchors.fill: parent
+          color: Util.alpha(Color.background, 0.85)
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          onClicked: root.closePreview()
+        }
+
+        BorderSurface {
+          id: previewCard
+          width: Math.min(parent.width, parent.height) - Style.space(24)
+          height: width
+          anchors.centerIn: parent
+          color: Color.popups.background
+          borderSpec: Border.flat(root.foreground, Style.normalBorderWidth)
+          radius: Style.cornerRadius
+          padding: Style.space(10)
+
+          MouseArea { anchors.fill: parent; onClicked: {} }
+
+          Image {
+            anchors.fill: parent
+            source: root.previewPath ? Util.fileUrl(root.previewPath) : ""
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            cache: false
+          }
+
+          PanelActionButton {
+            anchors.top: parent.top
+            anchors.right: parent.right
+            iconText: "󰅖"
+            tooltipText: "Close"
+            foreground: root.foreground
+            onClicked: root.closePreview()
+          }
+        }
+      }
     }
   }
 
