@@ -17,6 +17,13 @@ jobs:
       - name: Validate manifest.json
         run: python3 -c "import json; json.load(open('manifest.json')); print('manifest.json is valid JSON')"
 
+      - name: Shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: "."
+          ignore_paths: >-
+            .git
+
       - name: Install QML tooling
         run: |
           sudo apt-get update

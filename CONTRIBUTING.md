@@ -61,8 +61,9 @@ still shells out to the built-in `omarchy-clipboard-paste-file` and
 ## CI
 
 `.github/workflows/ci.yml` runs on every push to `main` (and on pull
-requests) and validates `manifest.json` and every `.qml` file with
-`qmllint`, so a syntax error can't land on `main`.
+requests): it validates `manifest.json`, runs Shellcheck on any shell
+scripts, and lints every `.qml` file with `qmllint`, so a syntax error
+can't land on `main`.
 
 ## Commits and releases
 
