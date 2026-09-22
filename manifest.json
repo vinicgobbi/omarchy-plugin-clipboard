@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "vinicgobbi.clipboard",
+  "name": "Clipboard",
+  "version": "0.1.0",
+  "author": "vinicgobbi",
+  "license": "MIT",
+  "homepage": "https://github.com/vinicgobbi/omarchy-plugin-clipboard",
+  "description": "Clipboard manager overlay (cloned from omarchy.clipboard) to view and paste history",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Clipboard.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.clipboard"
+  }
+}

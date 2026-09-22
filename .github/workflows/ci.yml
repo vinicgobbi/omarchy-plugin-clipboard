@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Validate manifest.json
+        run: python3 -c "import json; json.load(open('manifest.json')); print('manifest.json is valid JSON')"
+
+      - name: Install QML tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-declarative-dev-tools
+
+      - name: Lint QML files
+        run: |
+          QMLLINT="$(command -v qmllint || find /usr/lib/qt6 -type f -name qmllint | head -n1)"
+          if [ -z "$QMLLINT" ]; then
+            echo "qmllint not found after install" >&2
+            exit 1
+          fi
+          "$QMLLINT" --version
+          # This plugin's qs.Commons/qs.Ui imports only resolve inside a real
+          # Omarchy/Quickshell install, which isn't available here — so import
+          # resolution and everything that cascades from it (unqualified
+          # access, unresolved types/properties, required-property checks on
+          # types qmllint couldn't resolve, Process's onExited signature,
+          # aliases into a component qmllint can't fully resolve outside that
+          # install) are disabled. Category names match qmllint 6.4 (what
+          # ubuntu-latest's qt6-declarative-dev-tools ships) — verified
+          # against that exact version in a matching container, not just
+          # locally, since a newer Qt renames/splits several of these (e.g.
+          # 6.10 renames --alias to --unresolved-alias). That still leaves
+          # qmllint doing real syntax validation: a genuinely malformed file
+          # fails with a "Expected token" error and non-zero exit regardless
+          # of these flags.
+          find . -name '*.qml' -not -path './.git/*' -print0 | xargs -0 "$QMLLINT" \
+            --import disable \
+            --unqualified disable \
+            --type disable \
+            --property disable \
+            --required disable \
+            --signal disable \
+            --alias disable
