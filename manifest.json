@@ -6,14 +6,11 @@
   "author": "vinicgobbi",
   "license": "MIT",
   "homepage": "https://github.com/vinicgobbi/omarchy-plugin-clipboard",
-  "description": "Clipboard manager overlay (cloned from omarchy.clipboard) to view and paste history",
+  "description": "Bar icon with a clipboard history popup (cloned from omarchy.clipboard), with an inline preview for image entries",
   "kinds": [
-    "overlay",
     "bar-widget"
   ],
-  "keepLoaded": true,
   "entryPoints": {
-    "overlay": "Clipboard.qml",
     "barWidget": "BarWidget.qml"
   },
   "omarchy": {
@@ -21,7 +18,7 @@
   },
   "barWidget": {
     "displayName": "Clipboard",
-    "description": "Opens the clipboard manager overlay",
+    "description": "Bar icon that opens a clipboard history popup",
     "category": "System",
     "defaultSection": "right",
     "allowMultiple": false
