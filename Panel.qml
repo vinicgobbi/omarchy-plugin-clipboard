@@ -32,7 +32,12 @@ Panel {
 
   property var history: []
   property string filterText: ""
+  // Pinned rows float to the top; `index` on each row still points at its
+  // real position in `history`, which is what --history-index (paste,
+  // remove, toggle-pin) needs, so only the display order changes here.
   readonly property var displayRows: ClipboardHistory.displayRows(root.history, root.filterText, 50)
+    .slice()
+    .sort(function(a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) })
 
   property bool clearConfirmOpen: false
   property string previewPath: ""
@@ -58,6 +63,11 @@ Panel {
 
   function removeRow(row) {
     root.history = ClipboardHistory.removeEntryAt(root.history, row.index)
+    root.saveHistory()
+  }
+
+  function togglePin(row) {
+    root.history = ClipboardHistory.togglePinned(root.history, row.index)
     root.saveHistory()
   }
 
@@ -179,10 +189,10 @@ Panel {
     focusTarget: keyCatcher
     // Grows past the list's own size while previewing an image, so there's
     // actually room to see what's in it instead of a postage stamp.
-    contentWidth: panel.fittedContentWidth(root.previewPath !== "" ? Style.space(480) : Style.space(340))
+    contentWidth: panel.fittedContentWidth(root.previewPath !== "" ? Style.space(500) : Style.space(380))
     contentHeight: panel.fittedContentHeight(
-      root.previewPath !== "" ? Style.space(480) : column.implicitHeight,
-      root.previewPath !== "" ? Style.space(560) : Style.space(440))
+      root.previewPath !== "" ? Style.space(500) : column.implicitHeight,
+      root.previewPath !== "" ? Style.space(580) : Style.space(500))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -254,7 +264,7 @@ Panel {
           id: historyList
           visible: root.displayRows.length > 0
           width: parent.width
-          height: Math.min(contentHeight, Style.space(300))
+          height: Math.min(contentHeight, Style.space(360))
           spacing: Style.space(4)
           clip: true
           boundsBehavior: Flickable.StopAtBounds
@@ -342,6 +352,7 @@ Panel {
     implicitHeight: Style.space(44)
     foreground: root.foreground
     bordered: true
+    current: rowItem.entry.pinned
 
     MouseArea {
       anchors.fill: parent
@@ -388,14 +399,22 @@ Panel {
       spacing: Style.space(4)
 
       PanelActionButton {
-        id: eyeButton
+        size: Style.space(24)
+        iconText: rowItem.entry.pinned ? "󰐃" : "󰤱"
+        tooltipText: rowItem.entry.pinned ? "Unpin" : "Pin to top"
+        foreground: rowItem.entry.pinned ? Color.accent : root.foreground
+        anchors.verticalCenter: parent.verticalCenter
+        onClicked: root.togglePin(rowItem.entry)
+      }
+
+      PanelActionButton {
         visible: rowItem.isImage
         size: Style.space(24)
         iconText: "󰛐"
         tooltipText: "Preview"
         foreground: root.foreground
         anchors.verticalCenter: parent.verticalCenter
-        onClicked: root.openPreview(rowItem.entry.previewImage, eyeButton)
+        onClicked: root.openPreview(rowItem.entry.previewImage)
       }
 
       PanelActionButton {

@@ -4,10 +4,14 @@ function normalizeEntry(value) {
 
   if (!value || typeof value !== "object") return null
 
+  var pinned = value.pinned === true
   var type = String(value.type || value.kind || "")
   if (type === "text") {
     var text = String(value.text || "")
-    return text.trim().length > 0 ? { type: "text", text: text } : null
+    if (text.trim().length === 0) return null
+    var textEntry = { type: "text", text: text }
+    if (pinned) textEntry.pinned = true
+    return textEntry
   }
 
   if (type === "image") {
@@ -20,10 +24,28 @@ function normalizeEntry(value) {
     }
     if (value.capturedAt !== undefined && value.capturedAt !== null)
       entry.capturedAt = String(value.capturedAt)
+    if (pinned) entry.pinned = true
     return entry
   }
 
   return null
+}
+
+function cloneWithPinned(entry, pinned) {
+  var copy = {}
+  for (var key in entry) copy[key] = entry[key]
+  copy.pinned = pinned
+  return copy
+}
+
+function togglePinned(history, index) {
+  var values = Array.isArray(history) ? history : []
+  var target = Number(index)
+  if (isNaN(target) || target < 0 || target >= values.length) return values.slice()
+
+  var next = values.slice()
+  next[target] = cloneWithPinned(next[target], !next[target].pinned)
+  return next
 }
 
 function entryKey(entry) {
@@ -57,8 +79,18 @@ function addEntry(history, entry, limit) {
   if (max === 0) return []
 
   var key = entryKey(normalized)
-  var next = [normalized]
   var values = Array.isArray(history) ? history : []
+
+  // Recopying a pinned entry shouldn't silently unpin it.
+  for (var j = 0; j < values.length; j++) {
+    var current = normalizeEntry(values[j])
+    if (current && entryKey(current) === key && current.pinned) {
+      normalized.pinned = true
+      break
+    }
+  }
+
+  var next = [normalized]
 
   for (var i = 0; i < values.length && next.length < max; i++) {
     var existing = normalizeEntry(values[i])
@@ -168,7 +200,9 @@ function cappedEntry(entry) {
 
   // Cut on a line break so a file:// URI never truncates into a bogus path.
   var cut = entry.text.lastIndexOf("\n", displayTextLimit)
-  return { type: "text", text: entry.text.slice(0, cut > 0 ? cut : displayTextLimit) }
+  var capped = { type: "text", text: entry.text.slice(0, cut > 0 ? cut : displayTextLimit) }
+  if (entry.pinned) capped.pinned = true
+  return capped
 }
 
 function displayRows(history, query, limit) {
@@ -197,6 +231,7 @@ function displayRows(history, query, limit) {
       previewImage: previewPath,
       path: isImage ? String(entry.path || "") : (isFile && paths.length === 1 ? paths[0] : ""),
       mime: isImage ? String(entry.mime || "image/png") : "text/plain",
+      pinned: !!entry.pinned,
       index: i
     })
     if (rows.length >= max) break
@@ -212,6 +247,7 @@ if (typeof module !== "undefined") {
     parseHistory: parseHistory,
     addEntry: addEntry,
     removeEntryAt: removeEntryAt,
+    togglePinned: togglePinned,
     clearHistory: clearHistory,
     parseEntryJson: parseEntryJson,
     searchableText: searchableText,
