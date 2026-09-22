@@ -90,12 +90,22 @@ function addEntry(history, entry, limit) {
     }
   }
 
+  // Pinned entries are exempt from the cap — the trim below only
+  // decides how many *unpinned* entries stick around, oldest first to
+  // age out. A pin is only ever removed by an explicit delete.
   var next = [normalized]
+  var unpinnedBudget = Math.max(0, max - (normalized.pinned ? 0 : 1))
+  var unpinnedUsed = 0
 
-  for (var i = 0; i < values.length && next.length < max; i++) {
+  for (var i = 0; i < values.length; i++) {
     var existing = normalizeEntry(values[i])
     if (!existing || entryKey(existing) === key) continue
-    next.push(existing)
+    if (existing.pinned) {
+      next.push(existing)
+    } else if (unpinnedUsed < unpinnedBudget) {
+      next.push(existing)
+      unpinnedUsed++
+    }
   }
 
   return next
@@ -111,8 +121,15 @@ function removeEntryAt(history, index) {
   return next
 }
 
-function clearHistory() {
-  return []
+// Keeps pinned entries — only an explicit per-row delete removes those.
+function clearHistory(history) {
+  var values = Array.isArray(history) ? history : []
+  var kept = []
+  for (var i = 0; i < values.length; i++) {
+    var entry = normalizeEntry(values[i])
+    if (entry && entry.pinned) kept.push(entry)
+  }
+  return kept
 }
 
 function parseEntryJson(line) {

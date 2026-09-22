@@ -38,6 +38,9 @@ Panel {
   readonly property var displayRows: ClipboardHistory.displayRows(root.history, root.filterText, 50)
     .slice()
     .sort(function(a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) })
+  // "Clear history" only ever touches unpinned entries, so it has
+  // nothing to do once everything left is pinned.
+  readonly property bool hasClearableHistory: root.history.some(function(e) { return !e.pinned })
 
   property bool clearConfirmOpen: false
   property string previewPath: ""
@@ -99,12 +102,12 @@ Panel {
   }
 
   function requestClearHistory() {
-    if (root.history.length === 0) return
+    if (!root.hasClearableHistory) return
     root.clearConfirmOpen = true
   }
 
   function confirmClearHistory() {
-    root.history = ClipboardHistory.clearHistory()
+    root.history = ClipboardHistory.clearHistory(root.history)
     root.saveHistory()
     root.clearConfirmOpen = false
   }
@@ -229,10 +232,10 @@ Panel {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             iconText: "󰧧"
-            tooltipText: "Clear history"
+            tooltipText: "Clear history (keeps pinned)"
             foreground: root.foreground
             hoverColor: root.urgent
-            enabled: root.history.length > 0
+            enabled: root.hasClearableHistory
             onClicked: root.requestClearHistory()
           }
         }
@@ -285,7 +288,7 @@ Panel {
       ConfirmDialog {
         anchors.fill: parent
         opened: root.clearConfirmOpen
-        message: "Clear all clipboard history?"
+        message: "Clear clipboard history? Pinned items are kept."
         confirmText: "Clear"
         onCanceled: root.clearConfirmOpen = false
         onConfirmed: root.confirmClearHistory()
