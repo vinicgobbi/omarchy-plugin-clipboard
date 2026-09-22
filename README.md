@@ -52,6 +52,13 @@ omarchy plugin update vinicgobbi.clipboard
 omarchy plugin remove vinicgobbi.clipboard
 ```
 
+## Notes
+
+- Pinning is specific to this plugin — if you switch back to the
+  built-in `omarchy.clipboard`, the "pinned" flag is silently dropped
+  from entries the next time it rewrites the history file (the native
+  plugin doesn't know about it). The entries themselves are unaffected.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the plugin's
