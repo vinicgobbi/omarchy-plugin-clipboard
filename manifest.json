@@ -8,13 +8,22 @@
   "homepage": "https://github.com/vinicgobbi/omarchy-plugin-clipboard",
   "description": "Clipboard manager overlay (cloned from omarchy.clipboard) to view and paste history",
   "kinds": [
-    "overlay"
+    "overlay",
+    "bar-widget"
   ],
   "keepLoaded": true,
   "entryPoints": {
-    "overlay": "Clipboard.qml"
+    "overlay": "Clipboard.qml",
+    "barWidget": "BarWidget.qml"
   },
   "omarchy": {
     "clonedFrom": "omarchy.clipboard"
+  },
+  "barWidget": {
+    "displayName": "Clipboard",
+    "description": "Opens the clipboard manager overlay",
+    "category": "System",
+    "defaultSection": "right",
+    "allowMultiple": false
   }
 }

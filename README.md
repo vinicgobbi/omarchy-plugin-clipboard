@@ -13,11 +13,17 @@ custom clipboard-management features on top of the native behavior.
   and records every copy to
   `$XDG_STATE_HOME/omarchy/clipboard-history.json`, shared with the
   built-in plugin.
+- Adds a bar icon (unlike the native `omarchy.clipboard`, which has no
+  bar widget of its own) that opens the overlay with a click.
 
 ## Preview
 
 _TODO: add a preview screenshot once the UI has diverged from the
 built-in._
+
+## Usage
+
+Click the clipboard icon in the bar to open the overlay.
 
 ## Install
 

@@ -11,10 +11,13 @@ omarchy plugin enable vinicgobbi.clipboard
 ```
 
 This plugin is a clone of the built-in `omarchy.clipboard` (own id, so
-it doesn't collide with the built-in's IPC target). Disable
-`omarchy.clipboard` to avoid duplicate overlays.
+it doesn't collide with the built-in's IPC target), plus its own
+`bar-widget` entry point to open it from the bar. Disable
+`omarchy.clipboard` to avoid duplicate overlays, and hide the native
+`omarchy.clipboard` bar icon if you had one enabled.
 
-`Clipboard.qml` (the plugin's entry point) hot-reloads on its own.
+Both `Clipboard.qml` and `BarWidget.qml` (the plugin's entry points)
+hot-reload on their own.
 
 Validate the manifest before publishing:
 
@@ -33,6 +36,12 @@ omarchy plugin validate .
   parsing/normalization, entry dedup, and the filtered display rows
 - `capture.sh` — captures the current clipboard payload as a JSON
   entry on stdout; invoked both on demand and by `wl-paste --watch`
+- `BarWidget.qml` — bar icon that toggles the `Clipboard.qml` overlay.
+  Follows the `omarchy.menu` pattern rather than `omarchy.power`'s:
+  since the overlay is a separate top-level module (not something this
+  widget loads itself via `Loader`), it forwards to the shell's
+  generic `omarchy-shell shell toggle vinicgobbi.clipboard` IPC call
+  instead of tracking `opened` state directly
 
 Reuses the same history file
 (`$XDG_STATE_HOME/omarchy/clipboard-history.json`) and image cache
