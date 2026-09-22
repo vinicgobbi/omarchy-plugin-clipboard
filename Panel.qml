@@ -177,8 +177,12 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(320))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(420))
+    // Grows past the list's own size while previewing an image, so there's
+    // actually room to see what's in it instead of a postage stamp.
+    contentWidth: panel.fittedContentWidth(root.previewPath !== "" ? Style.space(480) : Style.space(340))
+    contentHeight: panel.fittedContentHeight(
+      root.previewPath !== "" ? Style.space(480) : column.implicitHeight,
+      root.previewPath !== "" ? Style.space(560) : Style.space(440))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -300,9 +304,8 @@ Panel {
 
         BorderSurface {
           id: previewCard
-          width: Math.min(parent.width, parent.height) - Style.space(24)
-          height: width
-          anchors.centerIn: parent
+          anchors.fill: parent
+          anchors.margins: Style.space(12)
           color: Color.popups.background
           borderSpec: Border.flat(root.foreground, Style.normalBorderWidth)
           radius: Style.cornerRadius
