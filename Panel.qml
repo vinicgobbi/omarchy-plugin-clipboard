@@ -385,6 +385,7 @@ Panel {
 
       Text {
         width: parent.width - Style.space(28)
+        textFormat: Text.PlainText
         text: rowItem.entry.previewText
         color: root.foreground
         font.family: root.fontFamily
