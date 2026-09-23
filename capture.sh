@@ -8,6 +8,7 @@ set -o pipefail
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 IMAGE_DIR="$STATE_DIR/clipboard-images"
+IMAGE_MAX_BYTES=$((20 * 1024 * 1024))
 mkdir -p "$IMAGE_DIR"
 
 types=$(wl-paste --list-types 2>/dev/null || true)
@@ -24,7 +25,10 @@ emit_image() {
   [[ $ext == jpeg ]] && ext=jpg
 
   tmp=$(mktemp --tmpdir="$IMAGE_DIR" clipboard.XXXXXX) || return 0
-  cat >"$tmp"
+  # Hard cap regardless of what the source claims: an unbounded `cat` here
+  # would let anything that can write to the clipboard (any app, a web
+  # page's "copy image") grow this directory without limit.
+  head -c "$IMAGE_MAX_BYTES" >"$tmp"
   if [[ ! -s $tmp ]]; then
     rm -f "$tmp"
     return 0

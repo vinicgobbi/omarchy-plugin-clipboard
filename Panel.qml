@@ -43,7 +43,21 @@ Panel {
   readonly property bool hasClearableHistory: root.history.some(function(e) { return !e.pinned })
 
   property bool clearConfirmOpen: false
+  // Preview is gated behind a size/dimension check before it ever reaches
+  // Image: an "image" entry is whatever the system clipboard held (any app
+  // can write to it, e.g. a web page's "copy image"), and a "file" entry's
+  // previewImage is any local path a copied file:// line happens to end in
+  // an image extension with — neither is validated at capture time beyond
+  // capture.sh's byte cap, and Image has no built-in limit on decoded
+  // pixel count. A small file claiming extreme dimensions would otherwise
+  // make the shell allocate far more memory than a thumbnail needs, or
+  // crash outright, the moment someone clicks the eye button.
   property string previewPath: ""
+  property string _previewPendingPath: ""
+  property int _previewGeneration: 0
+  property int _previewPendingGeneration: 0
+  readonly property int previewMaxBytes: 20 * 1024 * 1024
+  readonly property int previewMaxDimension: 8192
 
   function loadHistory(raw) {
     root.history = ClipboardHistory.parseHistory(raw)
@@ -92,13 +106,48 @@ Panel {
     root.close()
   }
 
+  readonly property string _previewCheckScript: [
+    "p=\"$1\"",
+    "size=$(stat -c%s -- \"$p\" 2>/dev/null) || exit 1",
+    "[ \"$size\" -le \"$2\" ] || exit 1",
+    "dims=$(timeout 5 identify -limit area 64MB -limit memory 64MB -limit map 64MB -format '%w %h' -- \"${p}[0]\" 2>/dev/null) || exit 1",
+    "w=${dims%% *}",
+    "h=${dims##* }",
+    "case \"$w\" in ''|*[!0-9]*) exit 1;; esac",
+    "case \"$h\" in ''|*[!0-9]*) exit 1;; esac",
+    "[ \"$w\" -le \"$3\" ] && [ \"$h\" -le \"$3\" ]"
+  ].join("\n")
+
+  function _startPreviewCheck(path, generation) {
+    previewCheckProcess.generation = generation
+    previewCheckProcess.targetPath = path
+    previewCheckProcess.command = ["bash", "-c", root._previewCheckScript, "_",
+      path, String(root.previewMaxBytes), String(root.previewMaxDimension)]
+    previewCheckProcess.running = true
+  }
+
   function openPreview(path) {
     if (!path) return
-    root.previewPath = path
+    root._previewGeneration += 1
+    var generation = root._previewGeneration
+    // At most one check runs at a time, same reasoning as media's art
+    // fetch: reassigning command/running on an already-running Process is
+    // undefined here, so a second click while one is in flight replaces
+    // the pending request instead of starting a second one.
+    if (previewCheckProcess.running) {
+      root._previewPendingPath = path
+      root._previewPendingGeneration = generation
+      return
+    }
+    root._startPreviewCheck(path, generation)
   }
 
   function closePreview() {
+    // Bumping the generation means a check already in flight for the
+    // preview being closed can't resurrect it once it lands.
+    root._previewGeneration += 1
     root.previewPath = ""
+    root._previewPendingPath = ""
   }
 
   function requestClearHistory() {
@@ -177,6 +226,23 @@ Panel {
     onTriggered: {
       if (!textWatchProc.running) textWatchProc.running = true
       if (!imageWatchProc.running) imageWatchProc.running = true
+    }
+  }
+
+  Process {
+    id: previewCheckProcess
+    property string targetPath: ""
+    property int generation: 0
+    onExited: function(exitCode) {
+      // Only publish a result that's still the one currently wanted — the
+      // preview (or the whole popup) may have been closed, or a different
+      // row clicked, while this check was in flight.
+      if (exitCode === 0 && generation === root._previewGeneration) root.previewPath = targetPath
+
+      var pending = root._previewPendingPath
+      var pendingGeneration = root._previewPendingGeneration
+      root._previewPendingPath = ""
+      if (pending) root._startPreviewCheck(pending, pendingGeneration)
     }
   }
 
