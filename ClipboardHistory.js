@@ -230,7 +230,8 @@ function displayRows(history, query, limit) {
   max = Math.max(0, max)
   if (max === 0) return []
 
-  var rows = []
+  var pinnedRows = []
+  var otherRows = []
 
   for (var i = 0; i < values.length; i++) {
     var entry = cappedEntry(normalizeEntry(values[i]))
@@ -241,7 +242,7 @@ function displayRows(history, query, limit) {
     var isFile = paths.length > 0
     var isImage = entry.type === "image"
     var previewPath = isImage ? String(entry.path || "") : (isFile && paths.length === 1 && isImagePath(paths[0]) ? paths[0] : "")
-    rows.push({
+    var row = {
       entryType: isFile ? "file" : entry.type,
       fullText: isImage ? "" : fullText(entry),
       previewText: previewText(entry),
@@ -250,11 +251,17 @@ function displayRows(history, query, limit) {
       mime: isImage ? String(entry.mime || "image/png") : "text/plain",
       pinned: !!entry.pinned,
       index: i
-    })
-    if (rows.length >= max) break
+    }
+    if (row.pinned) pinnedRows.push(row)
+    else if (otherRows.length < max) otherRows.push(row)
   }
 
-  return rows
+  // Pinned rows first, then the newest `max` others, each group keeping
+  // history order. A partition instead of Array.sort on purpose: the QML
+  // JS engine's sort is not stable (12 unpinned rows come back shuffled),
+  // which scattered the newest copies down the list. Pinned rows are also
+  // exempt from the `max` cut so an old pin never disappears from view.
+  return pinnedRows.concat(otherRows)
 }
 
 if (typeof module !== "undefined") {

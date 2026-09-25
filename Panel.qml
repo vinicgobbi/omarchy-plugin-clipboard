@@ -32,12 +32,12 @@ Panel {
 
   property var history: []
   property string filterText: ""
-  // Pinned rows float to the top; `index` on each row still points at its
-  // real position in `history`, which is what --history-index (paste,
-  // remove, toggle-pin) needs, so only the display order changes here.
+  // Pinned rows come first; `index` on each row still points at its real
+  // position in `history`, which is what --history-index (paste, remove,
+  // toggle-pin) needs, so only the display order changes here. Ordering is
+  // done inside displayRows — never with Array.sort, which isn't stable in
+  // the QML JS engine.
   readonly property var displayRows: ClipboardHistory.displayRows(root.history, root.filterText, 50)
-    .slice()
-    .sort(function(a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) })
   // "Clear history" only ever touches unpinned entries, so it has
   // nothing to do once everything left is pinned.
   readonly property bool hasClearableHistory: root.history.some(function(e) { return !e.pinned })
@@ -64,7 +64,10 @@ Panel {
   }
 
   function saveHistory() {
-    historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+    // No slice to historyLimit here: addEntry already enforces the cap, and
+    // it deliberately lets pinned entries exceed it. Slicing again would
+    // cut the array's tail — exactly where old pins sit.
+    historyFile.setText(JSON.stringify(root.history, null, 2) + "\n")
   }
 
   function addClipboardEntry(entry) {
