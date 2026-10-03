@@ -1,3 +1,9 @@
+## v0.2.2 (2026-10-03)
+
+### Fix
+
+- imagens que saem do histórico são apagadas do disco (ficavam para sempre em clipboard-images; só arquivos do próprio plugin, sem uso há mais de 5 minutos, e nunca com o histórico ilegível) e textos acima de 1 MiB não são guardados (o histórico inteiro é regravado a cada cópia)
+
 ## v0.2.1 (2026-10-03)
 
 ### Fix
