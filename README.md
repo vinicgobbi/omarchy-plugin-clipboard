@@ -20,6 +20,11 @@ full-screen overlay.
   and records every copy to
   `$XDG_STATE_HOME/omarchy/clipboard-history.json`, shared with the
   built-in plugin.
+- What's kept, and for how long: the last 300 entries (plus pinned ones);
+  texts up to 1 MiB (a bigger copy stays on the clipboard but isn't saved,
+  rather than saved cut short); images up to 20 MiB, stored once each in
+  `clipboard-images/` and deleted a few minutes after no entry uses them.
+  The history file and that folder are readable only by you.
 
 ## Preview
 

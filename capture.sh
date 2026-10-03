@@ -9,6 +9,10 @@ set -o pipefail
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 IMAGE_DIR="$STATE_DIR/clipboard-images"
 IMAGE_MAX_BYTES=$((20 * 1024 * 1024))
+# Bigger texts aren't kept at all (keeping a cut-down copy would paste
+# something other than what you copied). The whole history is rewritten on
+# every copy, so one huge log would slow down every copy after it.
+TEXT_MAX_BYTES=$((1024 * 1024))
 # Copied images are yours alone: each file is already 0600 (mktemp), and the
 # folder listing shouldn't be open to other users either.
 mkdir -p "$IMAGE_DIR"
@@ -41,6 +45,10 @@ emit_image() {
   file="$IMAGE_DIR/$hash.$ext"
   if [[ -e $file ]]; then
     rm -f "$tmp"
+    # Reused: mark it fresh so the panel's orphan cleanup (files no entry
+    # points to, older than a few minutes) can't take it before the new
+    # entry for it lands in the history.
+    touch -- "$file"
   else
     mv "$tmp" "$file"
   fi
@@ -50,9 +58,10 @@ emit_image() {
 }
 
 emit_text() {
-  perl -MEncode=decode,FB_CROAK,LEAVE_SRC -MJSON::PP=encode_json -0777 -e '
+  head -c $((TEXT_MAX_BYTES + 1)) | TEXT_MAX_BYTES=$TEXT_MAX_BYTES perl -MEncode=decode,FB_CROAK,LEAVE_SRC -MJSON::PP=encode_json -0777 -e '
     my $raw = <STDIN>;
     exit unless length $raw;
+    exit if length($raw) > $ENV{TEXT_MAX_BYTES};
 
     my $encoding;
     my $heuristic_encoding = 0;

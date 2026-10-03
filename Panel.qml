@@ -29,6 +29,10 @@ Panel {
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: Qt.resolvedUrl("capture.sh").toString().replace(/^file:\/\//, "")
   property int historyLimit: 300
+  // Same limit as capture.sh (1 MiB there, in bytes); this one also covers
+  // entries from an older version or a hand-edited history.
+  readonly property int textMaxChars: 1024 * 1024
+  readonly property string imageDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy/clipboard-images"
 
   property var history: []
   property string filterText: ""
@@ -59,8 +63,17 @@ Panel {
   readonly property int previewMaxBytes: 20 * 1024 * 1024
   readonly property int previewMaxDimension: 8192
 
-  function loadHistory(raw) {
+  // Whether `history` really reflects the file: the orphan-image cleanup
+  // only runs then, so an unreadable/corrupt history (parsed as empty) can
+  // never make every image look unused.
+  property bool _historyTrusted: false
+
+  function loadHistory(raw, missing) {
     root.history = ClipboardHistory.parseHistory(raw)
+    var ok = missing === true
+    if (!ok) { try { JSON.parse(String(raw || "")); ok = true } catch (e) { ok = false } }
+    root._historyTrusted = ok
+    if (ok) imageCleanupDelay.restart()
   }
 
   // The history holds everything you copied, so it's written readable only
@@ -79,7 +92,49 @@ Panel {
     saveProc.pendingText = text
     saveProc.command = ["sh", "-c", root._saveScript, "_", root.historyPath, String(unescape(encodeURIComponent(text)).length)]
     saveProc.running = true
+    imageCleanupDelay.restart()
   }
+
+  // --- Images nothing points to anymore ---
+  // An image leaves the history (aged out past historyLimit, deleted,
+  // cleared) but its file stayed in clipboard-images forever. This removes
+  // only files named the way capture.sh names them (sha256 + image
+  // extension) that no entry references, and only once they're a few
+  // minutes old: capture.sh writes the file just before the panel adds its
+  // entry, and touches a reused one, so a capture in flight is never taken.
+  readonly property string _imageCleanupScript: [
+    "cd -- \"$1\" 2>/dev/null || exit 0",
+    "shift",
+    "keep=\" $* \"",
+    "for f in *; do",
+    "  [[ $f =~ ^[0-9a-f]{64}\\.(png|jpg|webp|gif|bmp|tiff)$ ]] || continue",
+    "  case \"$keep\" in *\" $f \"*) continue;; esac",
+    "  [ -n \"$(find \"./$f\" -maxdepth 0 -type f -mmin +5 2>/dev/null)\" ] || continue",
+    "  rm -f -- \"./$f\"",
+    "done"
+  ].join("\n")
+
+  function cleanupImages() {
+    if (!root._historyTrusted) return
+    if (imageCleanupProc.running) { imageCleanupDelay.restart(); return }
+    var keep = []
+    var prefix = root.imageDir + "/"
+    for (var i = 0; i < root.history.length; i++) {
+      var e = root.history[i]
+      if (e && e.type === "image" && String(e.path || "").indexOf(prefix) === 0)
+        keep.push(String(e.path).slice(prefix.length))
+    }
+    imageCleanupProc.command = ["bash", "-c", root._imageCleanupScript, "_", root.imageDir].concat(keep)
+    imageCleanupProc.running = true
+  }
+
+  Timer {
+    id: imageCleanupDelay
+    interval: 30000
+    onTriggered: root.cleanupImages()
+  }
+
+  Process { id: imageCleanupProc }
 
   readonly property string _saveScript: [
     "umask 077",
@@ -91,6 +146,7 @@ Panel {
   function addClipboardEntry(entry) {
     var normalized = ClipboardHistory.normalizeEntry(entry)
     if (!normalized) return
+    if (normalized.type === "text" && normalized.text.length > root.textMaxChars) return
     root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
     root.saveHistory()
   }
@@ -209,7 +265,8 @@ Panel {
       write(pendingText)
       pendingText = ""
     }
-    onExited: {
+    onExited: function(exitCode) {
+      if (exitCode === 0) root._historyTrusted = true
       if (!root._saveQueued) return
       root._saveQueued = false
       root.saveHistory()
@@ -223,7 +280,7 @@ Panel {
     atomicWrites: true
     printErrors: false
     onLoaded: root.loadHistory(text())
-    onLoadFailed: root.loadHistory("[]")
+    onLoadFailed: root.loadHistory("[]", true)
     onFileChanged: reload()
   }
 
