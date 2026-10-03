@@ -9,7 +9,10 @@ set -o pipefail
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 IMAGE_DIR="$STATE_DIR/clipboard-images"
 IMAGE_MAX_BYTES=$((20 * 1024 * 1024))
+# Copied images are yours alone: each file is already 0600 (mktemp), and the
+# folder listing shouldn't be open to other users either.
 mkdir -p "$IMAGE_DIR"
+chmod 700 "$IMAGE_DIR" 2>/dev/null || true
 
 types=$(wl-paste --list-types 2>/dev/null || true)
 

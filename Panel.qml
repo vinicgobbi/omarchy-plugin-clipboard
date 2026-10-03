@@ -63,12 +63,30 @@ Panel {
     root.history = ClipboardHistory.parseHistory(raw)
   }
 
+  // The history holds everything you copied, so it's written readable only
+  // by you: umask 077 + mktemp give the new file 0600 from the start (a
+  // chmod after FileView's atomic write would leave it world-readable for a
+  // moment, and every write replaces the file). It goes over stdin, never
+  // argv, and head -c reads exactly its size so nothing waits for an EOF.
+  property bool _saveQueued: false
+
   function saveHistory() {
     // No slice to historyLimit here: addEntry already enforces the cap, and
     // it deliberately lets pinned entries exceed it. Slicing again would
     // cut the array's tail — exactly where old pins sit.
-    historyFile.setText(JSON.stringify(root.history, null, 2) + "\n")
+    if (saveProc.running) { root._saveQueued = true; return }
+    var text = JSON.stringify(root.history, null, 2) + "\n"
+    saveProc.pendingText = text
+    saveProc.command = ["sh", "-c", root._saveScript, "_", root.historyPath, String(unescape(encodeURIComponent(text)).length)]
+    saveProc.running = true
   }
+
+  readonly property string _saveScript: [
+    "umask 077",
+    "mkdir -p -- \"$(dirname -- \"$1\")\" || exit 1",
+    "tmp=$(mktemp -- \"$1.XXXXXX\") || exit 1",
+    "head -c \"$2\" > \"$tmp\" && mv -f -- \"$tmp\" \"$1\" || { rm -f -- \"$tmp\"; exit 1; }"
+  ].join("\n")
 
   function addClipboardEntry(entry) {
     var normalized = ClipboardHistory.normalizeEntry(entry)
@@ -113,7 +131,22 @@ Panel {
     "p=\"$1\"",
     "size=$(stat -c%s -- \"$p\" 2>/dev/null) || exit 1",
     "[ \"$size\" -le \"$2\" ] || exit 1",
-    "dims=$(timeout 5 identify -limit area 64MB -limit memory 64MB -limit map 64MB -format '%w %h' -- \"${p}[0]\" 2>/dev/null) || exit 1",
+    // Only real image formats the capture keeps, told apart by their first
+    // bytes, with the decoder named: left to guess, ImageMagick would hand a
+    // PostScript/PDF/SVG copied as "image/png" to Ghostscript or an SVG
+    // renderer.
+    "[ -f \"$p\" ] || exit 1",
+    "sig=$(head -c 12 -- \"$p\" | od -An -tx1 | tr -d ' \\n')",
+    "case \"$sig\" in",
+    "  89504e470d0a1a0a*) fmt=png;;",
+    "  ffd8ff*) fmt=jpeg;;",
+    "  474946383761*|474946383961*) fmt=gif;;",
+    "  52494646????????57454250) fmt=webp;;",
+    "  424d*) fmt=bmp;;",
+    "  49492a00*|4d4d002a*) fmt=tiff;;",
+    "  *) exit 1;;",
+    "esac",
+    "dims=$(timeout 5 identify -limit area 64MB -limit memory 64MB -limit map 64MB -format '%w %h' -- \"${fmt}:${p}[0]\" 2>/dev/null) || exit 1",
     "w=${dims%% *}",
     "h=${dims##* }",
     "case \"$w\" in ''|*[!0-9]*) exit 1;; esac",
@@ -167,6 +200,21 @@ Panel {
   onOpenedChanged: if (!opened) { root.clearConfirmOpen = false; root.closePreview() }
 
   Component.onCompleted: initProc.running = true
+
+  Process {
+    id: saveProc
+    property string pendingText: ""
+    stdinEnabled: true
+    onStarted: {
+      write(pendingText)
+      pendingText = ""
+    }
+    onExited: {
+      if (!root._saveQueued) return
+      root._saveQueued = false
+      root.saveHistory()
+    }
+  }
 
   FileView {
     id: historyFile
