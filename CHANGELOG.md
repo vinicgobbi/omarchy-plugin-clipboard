@@ -1,3 +1,9 @@
+## v0.2.1 (2026-10-03)
+
+### Fix
+
+- **security**: histórico gravado com permissão 600 desde a criação (era 644, legível por outros usuários) e pasta de imagens 700; pré-visualização só aceita formatos de imagem reais pela assinatura dos bytes, com o decodificador explícito (um PostScript/SVG copiado como image/png chegava ao Ghostscript)
+
 ## v0.2.0 (2026-10-03)
 
 ### Feat
