@@ -41,7 +41,16 @@ Panel {
   // toggle-pin) needs, so only the display order changes here. Ordering is
   // done inside displayRows — never with Array.sort, which isn't stable in
   // the QML JS engine.
-  readonly property var displayRows: ClipboardHistory.displayRows(root.history, root.filterText, 50)
+  // `pos` is the position in the *displayed* order (pinned first), which is what
+  // the arrow keys walk. `index` on the same row stays the position inside
+  // `history`, which is what paste/delete need.
+  readonly property var displayRows: {
+    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50)
+    for (var i = 0; i < rows.length; i++) rows[i].pos = i
+    return rows
+  }
+  // Keyboard cursor over the list, while the caret sits in the filter field.
+  property int selectedIndex: 0
   // "Clear history" only ever touches unpinned entries, so it has
   // nothing to do once everything left is pinned.
   readonly property bool hasClearableHistory: root.history.some(function(e) { return !e.pinned })
@@ -253,7 +262,45 @@ Panel {
     root.clearConfirmOpen = false
   }
 
-  onOpenedChanged: if (!opened) { root.clearConfirmOpen = false; root.closePreview() }
+  onOpenedChanged: {
+    if (opened) {
+      // KeyboardPanel focuses `focusTarget` (the key catcher) through its own
+      // Qt.callLater once the surface is mapped. Park the caret in the filter
+      // one more turn later, otherwise the two calls race and the catcher wins
+      // — that's why opening with the keyboard shortcut left nowhere to type.
+      Qt.callLater(function() {
+        Qt.callLater(function() {
+          if (root.opened) filterField.forceActiveFocus()
+        })
+      })
+      return
+    }
+    root.clearConfirmOpen = false
+    root.closePreview()
+    root.filterText = ""
+    root.selectedIndex = 0
+  }
+
+  // Clamp the cursor to what is actually on screen: typing in the filter shrinks
+  // the list, and the cursor must not be left pointing past the last row.
+  onDisplayRowsChanged: root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.displayRows.length - 1))
+
+  function moveSelection(dx) {
+    var count = root.displayRows.length
+    if (count === 0) { root.selectedIndex = 0; return }
+    var next = root.selectedIndex + dx
+    // Wrap: the list is short and the shortcut opens it straight into the filter,
+    // so hitting the end and having to walk back is pure friction.
+    if (next < 0) next = count - 1
+    else if (next >= count) next = 0
+    root.selectedIndex = next
+    if (historyList) historyList.positionViewAtIndex(next, ListView.Contiguous)
+  }
+
+  function pasteSelected() {
+    if (root.displayRows.length === 0) return
+    root.pasteRow(root.displayRows[Math.max(0, Math.min(root.selectedIndex, root.displayRows.length - 1))])
+  }
 
   Component.onCompleted: initProc.running = true
 
@@ -421,6 +468,17 @@ Panel {
           foreground: root.foreground
           text: root.filterText
           onTextChanged: root.filterText = text
+          // The key catcher is deliberately blocked while this field has focus,
+          // so Escape, Enter and the arrows never reach it — handle them here,
+          // otherwise the whole popup is mouse-only.
+          Keys.onDownPressed: function(event) { root.moveSelection(1); event.accepted = true }
+          Keys.onUpPressed: function(event) { root.moveSelection(-1); event.accepted = true }
+          Keys.onEscapePressed: function(event) {
+            if (root.filterText) root.filterText = ""
+            else root.close()
+            event.accepted = true
+          }
+          onAccepted: root.pasteSelected()
         }
 
         PanelSeparator {
@@ -446,6 +504,11 @@ Panel {
           clip: true
           boundsBehavior: Flickable.StopAtBounds
           interactive: contentHeight > height
+          currentIndex: root.selectedIndex
+
+          // Keeps the highlighted row inside the viewport when the arrow keys
+          // walk past its edges.
+          onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contiguous)
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
@@ -529,7 +592,10 @@ Panel {
     implicitHeight: Style.space(44)
     foreground: root.foreground
     bordered: true
-    current: rowItem.entry.pinned
+    // The keyboard cursor is what paints the selected row; the pin has its own
+    // button/icon, so it must not compete for the same highlight.
+    current: rowItem.entry.pos === root.selectedIndex
+    onHasCursorChanged: if (hasCursor) root.selectedIndex = rowItem.entry.pos
 
     MouseArea {
       anchors.fill: parent
