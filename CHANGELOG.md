@@ -1,3 +1,9 @@
+## v0.3.0 (2026-10-14)
+
+### Feat
+
+- keyboard-only navigation of the popup
+
 ## v0.2.2 (2026-10-03)
 
 ### Fix
