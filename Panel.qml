@@ -504,11 +504,13 @@ Panel {
           clip: true
           boundsBehavior: Flickable.StopAtBounds
           interactive: contentHeight > height
-          currentIndex: root.selectedIndex
-
-          // Keeps the highlighted row inside the viewport when the arrow keys
-          // walk past its edges.
-          onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contiguous)
+          // No currentIndex binding: rows paint the cursor from
+          // root.selectedIndex themselves. Bound, a hover that selected a
+          // half-visible row scrolled it into view, which slid the next row
+          // under a still mouse, which selected and scrolled again, so the
+          // list ran away downward. Only the arrow keys scroll now
+          // (moveSelection positions the view itself).
+          highlightFollowsCurrentItem: false
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
