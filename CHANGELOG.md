@@ -1,3 +1,10 @@
+## v0.3.1 (2026-11-03)
+
+### Fix
+
+- mantém a seleção visível ao abrir o popup e ao filtrar
+- hovering a row no longer scrolls the list away
+
 ## v0.3.0 (2026-10-14)
 
 ### Feat
