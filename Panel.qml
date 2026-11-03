@@ -262,8 +262,16 @@ Panel {
     root.clearConfirmOpen = false
   }
 
+  // The only path that scrolls the list. Hover must never come through here:
+  // scrolling under a still mouse would select another row and start over.
+  function revealSelection() {
+    if (historyList) historyList.positionViewAtIndex(root.selectedIndex, ListView.Contiguous)
+  }
+
   onOpenedChanged: {
     if (opened) {
+      // The list survives closing the popup: bring it back to the selected row.
+      Qt.callLater(root.revealSelection)
       // KeyboardPanel focuses `focusTarget` (the key catcher) through its own
       // Qt.callLater once the surface is mapped. Park the caret in the filter
       // one more turn later, otherwise the two calls race and the catcher wins
@@ -284,6 +292,8 @@ Panel {
   // Clamp the cursor to what is actually on screen: typing in the filter shrinks
   // the list, and the cursor must not be left pointing past the last row.
   onDisplayRowsChanged: root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.displayRows.length - 1))
+  // callLater: wait for the new model and the clamp above.
+  onFilterTextChanged: Qt.callLater(root.revealSelection)
 
   function moveSelection(dx) {
     var count = root.displayRows.length
@@ -294,7 +304,7 @@ Panel {
     if (next < 0) next = count - 1
     else if (next >= count) next = 0
     root.selectedIndex = next
-    if (historyList) historyList.positionViewAtIndex(next, ListView.Contiguous)
+    root.revealSelection()
   }
 
   function pasteSelected() {
@@ -504,11 +514,11 @@ Panel {
           clip: true
           boundsBehavior: Flickable.StopAtBounds
           interactive: contentHeight > height
-          currentIndex: root.selectedIndex
-
-          // Keeps the highlighted row inside the viewport when the arrow keys
-          // walk past its edges.
-          onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contiguous)
+          // currentIndex stays unbound: rows paint the cursor from
+          // root.selectedIndex themselves. Bound to it, a hover that selected a
+          // half-visible row scrolled it into view, which slid the next row
+          // under a still mouse, which selected and scrolled again, so the list
+          // ran away downward. Only revealSelection() scrolls now.
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
